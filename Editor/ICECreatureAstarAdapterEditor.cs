@@ -24,7 +24,7 @@ using ICE.World;
 using ICE.World.EditorUtilities;
 
 using ICE.Creatures;
-using ICE.Creatures.EditorHandler;
+
 
 namespace ICE.Creatures.Adapter
 {
