@@ -19,9 +19,14 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+
 using ICE.Creatures;
 using ICE.Creatures.Objects;
 using ICE.Creatures.EnumTypes;
+
+/*#if RVOImp
+ * using RVO;
+ #endif*/
 using Pathfinding;
 using Pathfinding.RVO;
 
@@ -32,7 +37,9 @@ namespace ICE.Creatures.Adapter
 	public class ICECreatureAstarAdapter : MonoBehaviour {
 
 		private ICECreatureControl m_Controller = null;
-
+#if RVOImp
+		private RVOController m_RVOController = null;
+#endif
 
 		void OnMoveComplete( GameObject _sender, TargetObject _target  )
 		{
@@ -177,9 +184,12 @@ namespace ICE.Creatures.Adapter
 			//just to optimize the transform component lookup
 			m_Transform = transform;		
 
-			
+
 			m_Controller = GetComponent<ICECreatureControl>();
 			m_CharacterController = GetComponent<CharacterController>();
+#if RVOImp
+			m_RVOController = GetComponent<RVOController>();
+#endif
 			m_Rigidbody = GetComponent<Rigidbody>();
 
 			if( m_Controller != null )
@@ -219,7 +229,7 @@ namespace ICE.Creatures.Adapter
 			{
 				Seeker.pathCallback += OnPathComplete;
 				
-				StartCoroutine( RepeatTrySearchPath() );
+				//StartCoroutine( RepeatTrySearchPath() );
 			}
 		}
 
@@ -279,7 +289,9 @@ namespace ICE.Creatures.Adapter
 				return v < 0 ? 0 : v;
 			}
 		}
-		
+
+		private Vector3 m_CurrentMovePosition = Vector3.zero;
+
 		/// <summary>
 		/// Requests a path to the given MovePosition.
 		/// </summary>
@@ -287,7 +299,7 @@ namespace ICE.Creatures.Adapter
 		{
 			m_LastRepath = Time.time;
 			//This is where we should search to
-			Vector3 targetPosition = m_Controller.Creature.Move.MovePosition;
+			m_CurrentMovePosition = m_Controller.Creature.Move.MovePosition;
 			
 			m_CanSearchAgain = false;
 			
@@ -296,7 +308,7 @@ namespace ICE.Creatures.Adapter
 			//seeker.StartPath (p);
 			
 			//We should search from the current position
-			Seeker.StartPath (GetFeetPosition(), targetPosition);
+			Seeker.StartPath( GetFeetPosition(), m_CurrentMovePosition );
 		}
 
 		/// <summary>
@@ -386,12 +398,24 @@ namespace ICE.Creatures.Adapter
 			
 			if( ! CanMove ) 
 				return;
-			
-			Vector3 _dir = CalculateVelocity (GetFeetPosition());
+
+			if( m_CurrentMovePosition != m_Controller.Creature.Move.MovePosition  )
+				TrySearchPath();
+
+			Vector3 _dir = CalculateVelocity( GetFeetPosition() );
 			
 			//Rotate towards targetDirection (filled in by CalculateVelocity)
 			RotateTowards( m_TargetDirection );
-			
+
+#if RVOImp
+			if( m_RVOController != null )
+			{
+				m_RVOController.maxSpeed = m_Controller.MoveForwardVelocity;
+				m_RVOController.rotationSpeed = m_Controller.MoveAngularVelocity;
+				m_RVOController.Move( _dir );
+			} 
+			else 
+#endif 
 			if( m_CharacterController != null ) {
 				m_CharacterController.SimpleMove( _dir );
 			} else if (m_Rigidbody != null) {
